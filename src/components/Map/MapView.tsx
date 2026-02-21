@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import Map, { MapRef, Marker, NavigationControl, GeolocateControl, Source, Layer, Popup } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useRouteStore } from "@/store/useRouteStore";
-import { Navigation, MapPin, Zap, Star, X } from "lucide-react";
+import { Navigation, MapPin, Zap, Star, X, Clock } from "lucide-react";
 import { getStationsInBounds } from "@/services/googlePlaces";
 import { useEVStore } from "@/store/useEVStore";
 import turfDistance from "@turf/distance";
@@ -343,6 +343,38 @@ export default function MapView() {
                                 </div>
                             )}
 
+                            {hoverInfo.station.regularOpeningHours && (
+                                <div className="flex items-center gap-1.5 mt-0.5 text-xs font-bold font-mono">
+                                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                                    {hoverInfo.station.regularOpeningHours.openNow ? (
+                                        <span className="text-emerald-600">Open Now</span>
+                                    ) : (
+                                        <span className="text-red-500">Closed</span>
+                                    )}
+                                </div>
+                            )}
+
+                            {hoverInfo.station.evChargeOptions?.connectorAggregation && hoverInfo.station.evChargeOptions.connectorAggregation.length > 0 && (
+                                <div className="mt-1 flex flex-col gap-1">
+                                    {hoverInfo.station.evChargeOptions.connectorAggregation.map((conn: any, i: number) => {
+                                        // Simplify EV connector types from Google's long ENUMs
+                                        const typeStr = conn.type.replace('EV_CONNECTOR_', '').replace('_', ' ');
+                                        const available = conn.count - (conn.outOfServiceCount || 0);
+                                        return (
+                                            <div key={i} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-1.5 px-2">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-xs font-black text-gray-800 bg-white border border-gray-200 px-1.5 py-0.5 rounded">{typeStr}</span>
+                                                    {conn.maxChargeRateKw && <span className="text-xs font-bold text-blue-600">{conn.maxChargeRateKw} kW</span>}
+                                                </div>
+                                                <span className="text-[10px] font-bold text-gray-500 ml-2">
+                                                    {available}/{conn.count}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
                             {/* Battery Prediction */}
                             {hoverEstSoC !== null && (
                                 <div className={`flex items-start gap-2 mt-2 text-sm font-bold p-2.5 rounded-xl border ${hoverEstSoC < 0 ? 'bg-red-50 text-red-600 border-red-100' :
@@ -374,10 +406,18 @@ export default function MapView() {
                                     ) : (
                                         <button
                                             onClick={() => {
+                                                // Find highest charge rate available
+                                                let maxKw = 0;
+                                                const options = hoverInfo.station.evChargeOptions?.connectorAggregation;
+                                                if (options && options.length > 0) {
+                                                    maxKw = Math.max(...options.map((conn: any) => conn.maxChargeRateKw || 0));
+                                                }
+
                                                 addSelectedWaypoint({
                                                     name: hoverInfo.station.displayName?.text || hoverInfo.station.name,
                                                     coordinates: [hoverInfo.longitude, hoverInfo.latitude],
-                                                    googleStationId: hoverInfo.station.id || hoverInfo.station.googleStationId
+                                                    googleStationId: hoverInfo.station.id || hoverInfo.station.googleStationId,
+                                                    stationMaxChargeRateKw: maxKw > 0 ? maxKw : undefined
                                                 });
                                                 setHoverInfo(null);
                                                 calculateRoute();

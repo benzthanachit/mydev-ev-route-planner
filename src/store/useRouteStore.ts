@@ -10,6 +10,7 @@ export interface LocationPoint {
     coordinates: [number, number]; // [longitude, latitude]
     googleStationId?: string;
     id?: string;
+    stationMaxChargeRateKw?: number;
 }
 
 export interface RouteState {

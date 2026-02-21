@@ -16,6 +16,7 @@ export default function EVSettingsModal({ isOpen, onClose }: Props) {
     const [batteryCapacity, setBatteryCapacity] = useState(profile.batteryCapacity);
     const [currentSoC, setCurrentSoC] = useState(profile.currentSoC);
     const [maxRange, setMaxRange] = useState(profile.maxRange);
+    const [maxChargePowerKw, setMaxChargePowerKw] = useState(profile.maxChargePowerKw);
     const [connectorType, setConnectorType] = useState<ConnectorType>(profile.connectorType);
 
     if (!isOpen) return null;
@@ -25,6 +26,7 @@ export default function EVSettingsModal({ isOpen, onClose }: Props) {
             batteryCapacity,
             currentSoC,
             maxRange,
+            maxChargePowerKw,
             connectorType
         });
         onClose();
@@ -97,6 +99,24 @@ export default function EVSettingsModal({ isOpen, onClose }: Props) {
                                     className="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold text-lg rounded-2xl px-5 py-4 outline-none focus:border-blue-500 focus:bg-white transition-colors pr-12"
                                 />
                                 <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-semibold select-none">km</span>
+                            </div>
+                        </div>
+
+                        {/* Max Charge Power */}
+                        <div className="flex flex-col gap-2 relative col-span-2 sm:col-span-1">
+                            <label className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                                <Zap className="w-4 h-4 text-blue-500" />
+                                Max Charge Speed
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={maxChargePowerKw}
+                                    onChange={(e) => setMaxChargePowerKw(Number(e.target.value))}
+                                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold text-lg rounded-2xl px-5 py-4 outline-none focus:border-blue-500 focus:bg-white transition-colors pr-12"
+                                    placeholder="e.g. 140"
+                                />
+                                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-semibold select-none">kW</span>
                             </div>
                         </div>
                     </div>

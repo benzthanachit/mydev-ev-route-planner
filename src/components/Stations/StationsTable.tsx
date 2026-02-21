@@ -71,7 +71,7 @@ export default function StationsTable() {
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200">
                             <tr>
                                 <th scope="col" className="px-6 py-5 font-bold tracking-wider">Station Name</th>
-                                <th scope="col" className="px-6 py-5 font-bold tracking-wider">Rating</th>
+                                <th scope="col" className="px-6 py-5 font-bold tracking-wider">Chargers & Power</th>
                                 <th scope="col" className="px-6 py-5 font-bold tracking-wider">Address</th>
                                 <th scope="col" className="px-6 py-5 text-right font-bold tracking-wider">Actions</th>
                             </tr>
@@ -104,14 +104,43 @@ export default function StationsTable() {
                                 stations.map((station) => (
                                     <tr key={station.id} className="bg-white hover:bg-gray-50/80 transition-colors group">
                                         <td className="px-6 py-5 font-bold text-gray-900 max-w-[250px] truncate" title={station.displayName?.text}>
-                                            {station.displayName?.text || "Unknown Station"}
+                                            <div className="flex flex-col gap-1">
+                                                <span>{station.displayName?.text || "Unknown Station"}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-amber-500 font-bold flex items-center gap-1 text-xs">
+                                                        <Star className="w-3 h-3 fill-amber-500" />
+                                                        {station.rating ? station.rating.toFixed(1) : "-"}
+                                                        <span className="text-gray-400 font-normal">({station.userRatingCount || 0})</span>
+                                                    </span>
+                                                    {station.regularOpeningHours && (
+                                                        <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${station.regularOpeningHours.openNow ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                            {station.regularOpeningHours.openNow ? 'Open' : 'Closed'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-5 whitespace-nowrap text-amber-500 font-bold flex items-center gap-1.5 mt-0.5">
-                                            <Star className="w-4 h-4 fill-amber-500" />
-                                            {station.rating ? station.rating.toFixed(1) : "-"}
-                                            <span className="text-gray-400 font-normal text-xs">
-                                                ({station.userRatingCount || 0})
-                                            </span>
+                                        <td className="px-6 py-5">
+                                            {station.evChargeOptions?.connectorAggregation && station.evChargeOptions.connectorAggregation.length > 0 ? (
+                                                <div className="flex flex-wrap gap-2 max-w-[300px]">
+                                                    {station.evChargeOptions.connectorAggregation.map((conn, i) => {
+                                                        const typeStr = conn.type.replace('EV_CONNECTOR_', '').replace('_', ' ');
+                                                        const isFast = conn.maxChargeRateKw && conn.maxChargeRateKw > 22;
+                                                        return (
+                                                            <div key={i} className={`flex text-xs font-bold border rounded-lg overflow-hidden ${isFast ? 'border-blue-200 shadow-sm' : 'border-gray-200'}`}>
+                                                                <span className={`px-2 py-1 ${isFast ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-700'}`}>{typeStr}</span>
+                                                                {conn.maxChargeRateKw && (
+                                                                    <span className={`px-2 py-1 border-l ${isFast ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200'}`}>
+                                                                        {conn.maxChargeRateKw}kW
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400 text-sm italic">Data unavailable</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-5 text-gray-500 max-w-[350px] truncate" title={station.formattedAddress}>
                                             {station.formattedAddress || "-"}

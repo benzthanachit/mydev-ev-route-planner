@@ -5,22 +5,66 @@ import { useEVStore } from "@/store/useEVStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin } from "lucide-react";
 import { useState } from "react";
+import turfDistance from "@turf/distance";
+import { point } from "@turf/helpers";
 
 export default function RouteBottomSheet() {
-    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute } = useRouteStore();
-    const { currentSoC, maxRange } = useEVStore();
+    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute, origin, destination } = useRouteStore();
+    const { currentSoC, maxRange, maxChargePowerKw, batteryCapacity } = useEVStore();
 
     const [isExpanded, setIsExpanded] = useState(false);
 
     if (!totalDistanceKm) return null;
 
-    // Very basic dummy calculation
-    const estTimeHours = totalDistanceKm / 80; // assume 80km/h avg speed
-    const hours = Math.floor(estTimeHours);
-    const minutes = Math.round((estTimeHours - hours) * 60);
+    // Driving calculation
+    const drivingTimeHours = totalDistanceKm / 80; // assume 80km/h avg speed
+    let totalTimeHours = drivingTimeHours;
 
-    // Remaining range based on SoC
+    // Charge Time calculation
+    const chargingTimes = selectedWaypoints.map(wp => {
+        if (!wp.googleStationId) return 0; // Not a charging stop
+
+        // Effective charge rate is the bottleneck between the station limit and the car limit
+        const stationKw = wp.stationMaxChargeRateKw || 50; // default to 50kW if unknown
+        const effectiveKw = Math.min(stationKw, maxChargePowerKw);
+
+        // Let's assume we charge from ~20% to 80% (60% of battery capacity)
+        const kwhRequired = batteryCapacity * 0.60;
+
+        // Hours required to charge
+        const chargeTimeHrs = kwhRequired / effectiveKw;
+        totalTimeHours += chargeTimeHrs;
+        return chargeTimeHrs;
+    });
+
+    const hours = Math.floor(totalTimeHours);
+    const minutes = Math.round((totalTimeHours - hours) * 60);
+
+    // Remaining range based on current SoC
     const remainingRange = Math.round((currentSoC / 100) * maxRange);
+
+    // Dynamic Destination SoC calculation
+    let destSoC = 15; // fallback
+    if (origin && destination) {
+        const chargingStops = selectedWaypoints.filter(wp => wp.googleStationId);
+        const hasChargingStops = chargingStops.length > 0;
+        const startSoCForLastLeg = hasChargingStops ? 80 : currentSoC;
+
+        let distToDestKm = totalDistanceKm;
+
+        if (hasChargingStops) {
+            // we estimate distance from the last stop to the destination using straight line * 1.2 routing factor
+            const lastStopCoord = chargingStops[chargingStops.length - 1].coordinates;
+            distToDestKm = turfDistance(
+                point(lastStopCoord),
+                point(destination.coordinates),
+                { units: 'kilometers' } as any
+            ) * 1.2;
+        }
+
+        const socDrop = (distToDestKm / maxRange) * 100;
+        destSoC = Math.round(startSoCForLastLeg - socDrop);
+    }
 
     return (
         <AnimatePresence>
@@ -104,9 +148,15 @@ export default function RouteBottomSheet() {
                                         </div>
                                         <h4 className={`${isChargingStop ? 'text-emerald-700' : 'text-gray-900'} font-bold text-lg leading-tight`}>{stop.name}</h4>
                                         {isChargingStop ? (
-                                            <p className="text-gray-600 text-sm font-medium flex items-center gap-1.5 mt-0.5">
-                                                <Clock className="w-4 h-4 text-amber-500" /> ~45 min charge recommended
-                                            </p>
+                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                <p className="text-gray-600 text-sm font-medium flex items-center gap-1.5">
+                                                    <Clock className="w-4 h-4 text-amber-500" />
+                                                    ~{Math.round(chargingTimes[idx] * 60)} min charge ({Math.min(stop.stationMaxChargeRateKw || 50, maxChargePowerKw)}kW)
+                                                </p>
+                                                <p className="text-xs text-gray-400 font-medium pl-6">
+                                                    Station max: {stop.stationMaxChargeRateKw || 'Unknown'}kW | Car max: {maxChargePowerKw}kW
+                                                </p>
+                                            </div>
                                         ) : (
                                             <p className="text-gray-500 text-sm font-medium mt-0.5">Navigational Stop</p>
                                         )}
@@ -136,7 +186,11 @@ export default function RouteBottomSheet() {
                                 <MapPin className="w-4 h-4 text-red-500" />
                             </div>
                             <h4 className="text-gray-900 font-bold text-lg">Destination</h4>
-                            <p className="text-gray-500 text-sm font-medium">Arriving with ~15% battery</p>
+                            <p className="text-gray-500 text-sm font-medium">
+                                {destSoC < 0
+                                    ? <span className="text-red-500">Not enough battery! Add a charging stop.</span>
+                                    : `Arriving with ~${destSoC}% battery`}
+                            </p>
                         </div>
 
                     </div>

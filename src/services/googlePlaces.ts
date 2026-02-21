@@ -10,7 +10,28 @@ export interface GooglePlaceStation {
     location: { latitude: number; longitude: number };
     rating?: number;
     userRatingCount?: number;
+    regularOpeningHours?: {
+        openNow: boolean;
+        weekdayDescriptions: string[];
+    };
+    evChargeOptions?: {
+        connectorCount: number;
+        connectorAggregation: {
+            type: string;
+            maxChargeRateKw: number;
+            count: number;
+            outOfServiceCount: number;
+        }[];
+    };
+    reviews?: {
+        text: { text: string };
+        rating: number;
+        authorAttribution: { displayName: string };
+        relativePublishTimeDescription: string;
+    }[];
 }
+
+const PLACES_FIELD_MASK = 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.regularOpeningHours,places.evChargeOptions,places.reviews';
 
 const PLACES_API_URL = 'https://places.googleapis.com/v1/places:searchText';
 
@@ -37,7 +58,7 @@ export async function searchStationsByQuery(query: string): Promise<GooglePlaceS
     try {
         const response = await fetch(PLACES_API_URL, {
             method: 'POST',
-            headers: getHeaders('places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount'),
+            headers: getHeaders(PLACES_FIELD_MASK),
             body: JSON.stringify({
                 textQuery: query,
                 languageCode: "en"
@@ -86,7 +107,7 @@ export async function getStationsAlongRoute(
         try {
             const response = await fetch(PLACES_API_URL, {
                 method: 'POST',
-                headers: getHeaders('places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount'),
+                headers: getHeaders(PLACES_FIELD_MASK),
                 body: JSON.stringify({
                     textQuery: "EV Charging Station",
                     languageCode: "en",
@@ -172,7 +193,7 @@ export async function getStationsInBounds(
     try {
         const response = await fetch(PLACES_API_URL, {
             method: 'POST',
-            headers: getHeaders('places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount'),
+            headers: getHeaders(PLACES_FIELD_MASK),
             body: JSON.stringify({
                 textQuery: "EV Charging Station",
                 languageCode: "en",
