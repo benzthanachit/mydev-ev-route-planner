@@ -9,6 +9,7 @@ export interface LocationPoint {
     name: string;
     coordinates: [number, number]; // [longitude, latitude]
     googleStationId?: string;
+    id?: string;
 }
 
 export interface RouteState {
@@ -47,7 +48,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     setViewportStations: (stations) => set({ viewportStations: stations }),
     addSelectedWaypoint: (wp) => set((state) => ({ selectedWaypoints: [...state.selectedWaypoints, wp] })),
     removeSelectedWaypoint: (id) => set((state) => ({
-        selectedWaypoints: state.selectedWaypoints.filter(w => w.googleStationId !== id)
+        selectedWaypoints: state.selectedWaypoints.filter(w => (w.googleStationId || w.id) !== id)
     })),
 
     // Fetch real route from Mapbox Directions API
@@ -109,9 +110,10 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             // 3. Recommended Stations Logic
             // Calculate distance from the *last* stop (or origin) to predict where the battery drops below 30%
             const evState = useEVStore.getState();
-            // Remaining range from the last stop (assuming they charge to 80% at a waypoint, or start at currentSoC)
-            const hasWaypoints = get().selectedWaypoints.length > 0;
-            const startSoC = hasWaypoints ? 80 : evState.currentSoC;
+            // Remaining range from the last charging stop (assuming they charge to 80% at a waypoint, or start at currentSoC)
+            const previousChargingStops = get().selectedWaypoints.filter(wp => wp.googleStationId);
+            const hasChargingWaypoints = previousChargingStops.length > 0;
+            const startSoC = hasChargingWaypoints ? 80 : evState.currentSoC;
             const absoluteRangeKm = (startSoC / 100) * evState.maxRange;
 
             // We recommend stations when distance is between 40% and 70% of absolute range
@@ -119,9 +121,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             const minRecommendedDist = absoluteRangeKm - (0.4 * evState.maxRange);
             const maxRecommendedDist = absoluteRangeKm - (0.1 * evState.maxRange);
 
-            // The reference coordinate for distance calculation is the last stop
-            const refCoord = hasWaypoints
-                ? get().selectedWaypoints[get().selectedWaypoints.length - 1].coordinates
+            // The reference coordinate for distance calculation is the last charging stop (or origin)
+            const refCoord = hasChargingWaypoints
+                ? previousChargingStops[previousChargingStops.length - 1].coordinates
                 : origin.coordinates;
 
             const recommendedIds: string[] = [];

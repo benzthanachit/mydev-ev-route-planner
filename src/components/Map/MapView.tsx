@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import Map, { MapRef, Marker, NavigationControl, GeolocateControl, Source, Layer, Popup } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useRouteStore } from "@/store/useRouteStore";
-import { Navigation, MapPin, Zap, Star } from "lucide-react";
+import { Navigation, MapPin, Zap, Star, X } from "lucide-react";
 import { getStationsInBounds } from "@/services/googlePlaces";
 import { useEVStore } from "@/store/useEVStore";
 import turfDistance from "@turf/distance";
@@ -15,8 +15,10 @@ export default function MapView() {
     const {
         origin, destination, routeCoordinates, chargingWaypoints,
         viewportStations, setViewportStations, recommendedStationIds,
-        addSelectedWaypoint, removeSelectedWaypoint, selectedWaypoints, calculateRoute
+        addSelectedWaypoint, removeSelectedWaypoint, selectedWaypoints, calculateRoute, setDestination
     } = useRouteStore();
+
+    const { addFavorite } = import('@/store/useFavoritesStore').then(m => m.useFavoritesStore.getState()).catch(e => ({ addFavorite: () => { } })) as any;
 
     const { currentSoC, maxRange } = useEVStore();
 
@@ -30,6 +32,15 @@ export default function MapView() {
         longitude: number;
         latitude: number;
         station: any;
+    } | null>(null);
+
+    const [droppedPin, setDroppedPin] = useState<{
+        longitude: number;
+        latitude: number;
+        address: string;
+        isLoading: boolean;
+        isSaving: boolean;
+        saveName: string;
     } | null>(null);
 
     // Fetch stations on mount and on map move end
@@ -91,9 +102,37 @@ export default function MapView() {
                 });
             }
         } else {
-            setHoverInfo(null); // Clicked on empty map
+            setHoverInfo(null); // Clicked on empty map, try to drop pin
+
+            const lng = event.lngLat.lng;
+            const lat = event.lngLat.lat;
+
+            setDroppedPin({
+                longitude: lng,
+                latitude: lat,
+                address: "Loading location...",
+                isLoading: true,
+                isSaving: false,
+                saveName: "Favorite Location"
+            });
+
+            // Reverse Geocoder
+            const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+            if (mapboxToken) {
+                fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const placeName = data.features?.[0]?.place_name || "Unknown Location";
+                        setDroppedPin(prev => prev ? { ...prev, address: placeName, isLoading: false } : null);
+                    })
+                    .catch(() => {
+                        setDroppedPin(prev => prev ? { ...prev, address: "Unknown Location", isLoading: false } : null);
+                    });
+            } else {
+                setDroppedPin(prev => prev ? { ...prev, address: "Unknown Location", isLoading: false } : null);
+            }
         }
-    }, []);
+    }, [setDroppedPin]);
 
     // Cursor style
     const [cursor, setCursor] = useState("auto");
@@ -129,10 +168,11 @@ export default function MapView() {
     const hoverEstSoC = useMemo(() => {
         if (!hoverInfo || !origin) return null;
 
-        const hasWaypoints = selectedWaypoints.length > 0;
-        const startSoC = hasWaypoints ? 80 : currentSoC;
-        const refCoord = hasWaypoints
-            ? selectedWaypoints[selectedWaypoints.length - 1].coordinates
+        const previousChargingStops = selectedWaypoints.filter(wp => wp.googleStationId);
+        const hasChargingWaypoints = previousChargingStops.length > 0;
+        const startSoC = hasChargingWaypoints ? 80 : currentSoC;
+        const refCoord = hasChargingWaypoints
+            ? previousChargingStops[previousChargingStops.length - 1].coordinates
             : origin.coordinates;
 
         // Assuming ~1.2x routing factor over straight line distance
@@ -306,7 +346,7 @@ export default function MapView() {
                             {/* Battery Prediction */}
                             {hoverEstSoC !== null && (
                                 <div className={`flex items-start gap-2 mt-2 text-sm font-bold p-2.5 rounded-xl border ${hoverEstSoC < 0 ? 'bg-red-50 text-red-600 border-red-100' :
-                                        hoverEstSoC < 20 ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                    hoverEstSoC < 20 ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                     }`}>
                                     <Zap className="w-4 h-4 mt-0.5 shrink-0" />
                                     <span className="leading-tight">
@@ -348,6 +388,119 @@ export default function MapView() {
                                         </button>
                                     )}
                                 </div>
+                            )}
+                        </div>
+                    </Popup>
+                )}
+
+                {/* Popup for Dropped Pins (Empty Map Clicks) */}
+                {droppedPin && (
+                    <Popup
+                        longitude={droppedPin.longitude}
+                        latitude={droppedPin.latitude}
+                        anchor="bottom"
+                        onClose={() => setDroppedPin(null)}
+                        closeOnClick={false}
+                        className="rounded-xl overflow-hidden shadow-2xl z-50"
+                        maxWidth="320px"
+                    >
+                        <div className="p-3 text-gray-900 flex flex-col gap-2 min-w-[240px]">
+                            {droppedPin.isSaving ? (
+                                <div className="flex flex-col gap-2">
+                                    <h3 className="font-bold text-base">Save as Favorite</h3>
+                                    <input
+                                        type="text"
+                                        value={droppedPin.saveName}
+                                        onChange={(e) => setDroppedPin({ ...droppedPin, saveName: e.target.value })}
+                                        className="border border-gray-300 rounded-lg p-2 text-sm w-full outline-none focus:border-blue-500"
+                                        placeholder="e.g. Home, Work..."
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 mt-1">
+                                        <button
+                                            onClick={() => setDroppedPin({ ...droppedPin, isSaving: false })}
+                                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-1.5 rounded-lg text-sm"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                import('@/store/useFavoritesStore').then(m => {
+                                                    m.useFavoritesStore.getState().addFavorite({
+                                                        id: Date.now().toString(),
+                                                        createdAt: Date.now(),
+                                                        name: droppedPin.saveName || 'Saved Location',
+                                                        coordinates: [droppedPin.longitude, droppedPin.latitude],
+                                                    });
+                                                    setDroppedPin(null);
+                                                });
+                                            }}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-sm shadow-md"
+                                        >
+                                            Save
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-start justify-between border-b border-gray-100 pb-2">
+                                        <div className="flex items-start gap-2">
+                                            <MapPin className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                                            <div>
+                                                <h3 className="font-bold text-base leading-tight">Dropped Pin</h3>
+                                                <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                                                    {droppedPin.isLoading ? "Loading address..." : droppedPin.address}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setDroppedPin(null)}
+                                            className="text-gray-400 hover:text-gray-600 p-1 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors shrink-0"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex gap-2 pt-1">
+                                        <button
+                                            onClick={() => setDroppedPin({ ...droppedPin, isSaving: true })}
+                                            className="flex-[0.6] bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold py-2 rounded-xl transition-colors text-sm flex items-center justify-center gap-1 border border-amber-200"
+                                        >
+                                            <Star className="w-4 h-4 fill-amber-500 text-amber-500" /> Save
+                                        </button>
+
+                                        {routeCoordinates ? (
+                                            <button
+                                                onClick={() => {
+                                                    addSelectedWaypoint({
+                                                        id: `pin-${Date.now()}`,
+                                                        name: droppedPin.address,
+                                                        coordinates: [droppedPin.longitude, droppedPin.latitude]
+                                                    });
+                                                    setDroppedPin(null);
+                                                    calculateRoute();
+                                                }}
+                                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition-colors shadow-md text-sm"
+                                            >
+                                                Add Stop
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => {
+                                                    setDestination({
+                                                        name: droppedPin.address,
+                                                        coordinates: [droppedPin.longitude, droppedPin.latitude]
+                                                    });
+                                                    setDroppedPin(null);
+                                                    calculateRoute();
+                                                }}
+                                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition-colors shadow-md text-sm"
+                                            >
+                                                Direction
+                                            </button>
+                                        )}
+                                    </div>
+                                </>
                             )}
                         </div>
                     </Popup>

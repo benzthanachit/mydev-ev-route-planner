@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouteStore } from "@/store/useRouteStore";
-import { Search, MapPin, Navigation, ArrowRight } from "lucide-react";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { Star, MapPin, Navigation, ArrowRight, X } from "lucide-react";
 import dynamic from 'next/dynamic';
 
 const SearchBox = dynamic(() => import('@mapbox/search-js-react').then(mod => mod.SearchBox), {
@@ -11,6 +12,7 @@ const SearchBox = dynamic(() => import('@mapbox/search-js-react').then(mod => mo
 
 export default function RouteSearch() {
     const { origin, destination, setOrigin, setDestination, calculateRoute, totalDistanceKm } = useRouteStore();
+    const { favorites, removeFavorite } = useFavoritesStore();
 
     const [originInput, setOriginInput] = useState("");
     const [destInput, setDestInput] = useState("");
@@ -90,8 +92,47 @@ export default function RouteSearch() {
                     </div>
                 </div>
 
+                {/* Favorites Quick Select */}
+                {favorites.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-2 px-2">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Saved Favorites</span>
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {favorites.map(fav => (
+                                <div
+                                    key={fav.id}
+                                    className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 group cursor-pointer hover:bg-amber-100 transition-colors"
+                                    onClick={() => {
+                                        setDestination({
+                                            name: fav.name,
+                                            coordinates: fav.coordinates,
+                                            googleStationId: fav.googleStationId
+                                        });
+                                        // A small hack to update the visual text in the mapbox component
+                                        const inputs = document.querySelectorAll('input');
+                                        if (inputs[1]) {
+                                            inputs[1].value = fav.name;
+                                        }
+                                    }}
+                                >
+                                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                                    <span className="text-sm font-bold">{fav.name}</span>
+                                    <button
+                                        className="ml-1 text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-full hover:bg-amber-200"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeFavorite(fav.id!);
+                                        }}
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Action Button */}
-                <div className="flex items-center justify-between mt-2 pl-2">
+                <div className="flex items-center justify-between mt-2 pl-2 border-t border-gray-100 pt-4">
                     {totalDistanceKm ? (
                         <div className="text-sm text-gray-500 font-medium">Distance: <span className="text-gray-900 font-black text-lg">{totalDistanceKm}km</span></div>
                     ) : (

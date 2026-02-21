@@ -7,7 +7,7 @@ import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin } from "lucide-
 import { useState } from "react";
 
 export default function RouteBottomSheet() {
-    const { totalDistanceKm, selectedWaypoints } = useRouteStore();
+    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute } = useRouteStore();
     const { currentSoC, maxRange } = useEVStore();
 
     const [isExpanded, setIsExpanded] = useState(false);
@@ -86,29 +86,48 @@ export default function RouteBottomSheet() {
                             <p className="text-gray-500 text-sm font-medium">Battery at {currentSoC}%</p>
                         </div>
 
-                        {/* Charging Stops */}
+                        {/* Charging & Normal Stops */}
                         {selectedWaypoints.length === 0 ? (
                             <div className="relative pl-14 flex flex-col gap-1 py-4">
                                 <div className="absolute left-[3px] w-8 h-8 bg-gray-100 border-2 border-dashed border-gray-400 rounded-full flex items-center justify-center translate-x-0 z-10">
                                     <span className="text-gray-400 text-xs font-bold">?</span>
                                 </div>
-                                <h4 className="text-gray-500 font-bold text-sm italic">No charging stops selected. Click a highlighted station on the map to add one.</h4>
+                                <h4 className="text-gray-500 font-bold text-sm italic">No stops selected. Click a highlighted station or drop a pin to add one.</h4>
                             </div>
                         ) : (
-                            selectedWaypoints.map((stop, idx) => (
-                                <div key={idx} className="relative pl-14 flex flex-col gap-1 py-4">
-                                    <div className="absolute left-0 w-10 h-10 bg-emerald-50 border-[3px] border-emerald-500 rounded-full flex items-center justify-center translate-x-0 outline outline-[6px] outline-white z-10">
-                                        <Zap className="w-4 h-4 text-emerald-600" />
+                            selectedWaypoints.map((stop, idx) => {
+                                const isChargingStop = !!stop.googleStationId;
+                                return (
+                                    <div key={idx} className="relative pl-14 flex flex-col gap-1 py-4">
+                                        <div className={`absolute left-0 w-10 h-10 ${isChargingStop ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-gray-400'} border-[3px] rounded-full flex items-center justify-center translate-x-0 outline outline-[6px] outline-white z-10`}>
+                                            {isChargingStop ? <Zap className="w-4 h-4 text-emerald-600" /> : <MapPin className="w-4 h-4 text-gray-400" />}
+                                        </div>
+                                        <h4 className={`${isChargingStop ? 'text-emerald-700' : 'text-gray-900'} font-bold text-lg leading-tight`}>{stop.name}</h4>
+                                        {isChargingStop ? (
+                                            <p className="text-gray-600 text-sm font-medium flex items-center gap-1.5 mt-0.5">
+                                                <Clock className="w-4 h-4 text-amber-500" /> ~45 min charge recommended
+                                            </p>
+                                        ) : (
+                                            <p className="text-gray-500 text-sm font-medium mt-0.5">Navigational Stop</p>
+                                        )}
+                                        <div className="bg-gray-50 rounded-xl p-3 flex justify-between items-center mt-3 border border-gray-100">
+                                            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Added to Route Plan</p>
+                                            <button
+                                                className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline px-2 py-1"
+                                                onClick={() => {
+                                                    const idToRemove = stop.googleStationId || stop.id;
+                                                    if (idToRemove) {
+                                                        removeSelectedWaypoint(idToRemove);
+                                                        calculateRoute();
+                                                    }
+                                                }}
+                                            >
+                                                Remove Stop
+                                            </button>
+                                        </div>
                                     </div>
-                                    <h4 className="text-emerald-700 font-bold text-lg">{stop.name}</h4>
-                                    <p className="text-gray-600 text-sm font-medium flex items-center gap-1.5">
-                                        <Clock className="w-4 h-4 text-amber-500" /> ~45 min charge recommended
-                                    </p>
-                                    <div className="bg-gray-50 rounded-xl p-4 mt-3 border border-gray-100">
-                                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Added to Route Plan</p>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
 
                         {/* End point */}
