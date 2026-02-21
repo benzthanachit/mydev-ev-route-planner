@@ -12,6 +12,8 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@mapbox/search-js-react": "^1.5.1",
+    "@turf/along": "^7.3.4",
+    "@turf/length": "^7.3.4",
     "@turf/point-to-line-distance": "^7.3.4",
     "@turf/turf": "^7.3.4",
     "@types/turf": "^3.5.32",

@@ -1,5 +1,7 @@
 import { lineString, bbox, point } from '@turf/turf';
 import pointToLineDistance from '@turf/point-to-line-distance';
+import length from '@turf/length';
+import along from '@turf/along';
 
 export interface GooglePlaceStation {
     id: string;
@@ -68,32 +70,78 @@ export async function getStationsAlongRoute(
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) return [];
 
-    // 1. Calculate BBox for the location restriction
+    // 1. Calculate Route Chunking
     const routeLine = lineString(routeCoordinates);
-    const [minLng, minLat, maxLng, maxLat] = bbox(routeLine);
+    const routeLength = length(routeLine, { units: 'kilometers' });
+
+    // Chunking strategy to bypass Google Places 20 results limit
+    // We will search in 30km chunks to ensure we don't miss stations on long routes
+    const CHUNK_SIZE_KM = 30;
+    const numChunks = Math.max(1, Math.ceil(routeLength / CHUNK_SIZE_KM));
+
+    console.log(`[GOOGLE PLACES API] Route is ${routeLength.toFixed(1)}km. Breaking into ${numChunks} chunks for max coverage.`);
+
+    // Helper function to fetch stations within a bbox
+    const fetchChunk = async (bboxObj: { minLng: number, minLat: number, maxLng: number, maxLat: number }) => {
+        try {
+            const response = await fetch(PLACES_API_URL, {
+                method: 'POST',
+                headers: getHeaders('places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount'),
+                body: JSON.stringify({
+                    textQuery: "EV Charging Station",
+                    languageCode: "en",
+                    locationRestriction: {
+                        rectangle: {
+                            low: { latitude: bboxObj.minLat, longitude: bboxObj.minLng },
+                            high: { latitude: bboxObj.maxLat, longitude: bboxObj.maxLng }
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) return [];
+            const data = await response.json();
+            return (data.places || []) as GooglePlaceStation[];
+        } catch (error) {
+            return [];
+        }
+    };
+
+    // Calculate chunks and fetch in parallel
+    const fetchPromises = [];
+    for (let i = 0; i <= numChunks; i++) {
+        // Find the center point of our chunk
+        const distDist = Math.min(i * CHUNK_SIZE_KM, routeLength);
+        const centerPoint = along(routeLine, distDist, { units: 'kilometers' } as any);
+        const lng = centerPoint.geometry.coordinates[0];
+        const lat = centerPoint.geometry.coordinates[1];
+
+        // Create a bbox around this center point (20km radius = 40x40km square)
+        const searchRadiusKm = 20;
+        const latDelta = searchRadiusKm / 111;
+        const lngDelta = searchRadiusKm / (111 * Math.cos(lat * (Math.PI / 180)));
+
+        fetchPromises.push(fetchChunk({
+            minLng: lng - lngDelta,
+            minLat: lat - latDelta,
+            maxLng: lng + lngDelta,
+            maxLat: lat + latDelta
+        }));
+    }
 
     try {
-        // Use the Places API with a rectangle location restriction
-        const response = await fetch(PLACES_API_URL, {
-            method: 'POST',
-            headers: getHeaders('places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount'),
-            body: JSON.stringify({
-                textQuery: "EV Charging Station",
-                languageCode: "en",
-                locationRestriction: {
-                    rectangle: {
-                        low: { latitude: minLat, longitude: minLng },
-                        high: { latitude: maxLat, longitude: maxLng }
-                    }
-                }
-            })
+        const chunkResults = await Promise.all(fetchPromises);
+
+        // Flatten and deduplicate by ID
+        const allStationsMap = new Map<string, GooglePlaceStation>();
+        chunkResults.forEach(chunkStations => {
+            chunkStations.forEach(station => {
+                allStationsMap.set(station.id, station);
+            });
         });
 
-        if (!response.ok) throw new Error(`Google Places API error: ${response.statusText}`);
-
-        const data = await response.json();
-        const rawStations: GooglePlaceStation[] = data.places || [];
-        console.log(`[GOOGLE PLACES API] Raw stations fetched near route bounding box: ${rawStations.length}`);
+        const rawStations = Array.from(allStationsMap.values());
+        console.log(`[GOOGLE PLACES API] Raw unique stations fetched across chunks: ${rawStations.length}`);
 
         // 2. Strict Spatial Filtering using Turf
         const filteredStations = rawStations.filter(station => {
