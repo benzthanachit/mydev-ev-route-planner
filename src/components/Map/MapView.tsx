@@ -6,6 +6,9 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { useRouteStore } from "@/store/useRouteStore";
 import { Navigation, MapPin, Zap, Star } from "lucide-react";
 import { getStationsInBounds } from "@/services/googlePlaces";
+import { useEVStore } from "@/store/useEVStore";
+import turfDistance from "@turf/distance";
+import { point } from "@turf/helpers";
 
 export default function MapView() {
     const mapRef = useRef<MapRef>(null);
@@ -14,6 +17,8 @@ export default function MapView() {
         viewportStations, setViewportStations, recommendedStationIds,
         addSelectedWaypoint, removeSelectedWaypoint, selectedWaypoints, calculateRoute
     } = useRouteStore();
+
+    const { currentSoC, maxRange } = useEVStore();
 
     const [viewState, setViewState] = useState({
         longitude: 100.4682, // Default Thailand (Hat Yai approx: 100.4682, 7.0086)
@@ -120,6 +125,26 @@ export default function MapView() {
             }
         };
     }, [routeCoordinates]);
+
+    const hoverEstSoC = useMemo(() => {
+        if (!hoverInfo || !origin) return null;
+
+        const hasWaypoints = selectedWaypoints.length > 0;
+        const startSoC = hasWaypoints ? 80 : currentSoC;
+        const refCoord = hasWaypoints
+            ? selectedWaypoints[selectedWaypoints.length - 1].coordinates
+            : origin.coordinates;
+
+        // Assuming ~1.2x routing factor over straight line distance
+        const distKm = turfDistance(
+            point(refCoord),
+            point([hoverInfo.longitude, hoverInfo.latitude]),
+            { units: 'kilometers' } as any
+        ) * 1.2;
+
+        const socDrop = (distKm / maxRange) * 100;
+        return Math.round(startSoC - socDrop);
+    }, [hoverInfo, origin, selectedWaypoints, currentSoC, maxRange]);
 
     // Stations GeoJSON for Clustering
     const stationsGeoJSON = useMemo(() => {
@@ -275,6 +300,20 @@ export default function MapView() {
                                     <Star className="w-4 h-4 fill-amber-500" />
                                     {hoverInfo.station.rating.toFixed(1)}
                                     <span className="text-gray-400 font-normal ml-1">({hoverInfo.station.userRatingCount || 0})</span>
+                                </div>
+                            )}
+
+                            {/* Battery Prediction */}
+                            {hoverEstSoC !== null && (
+                                <div className={`flex items-start gap-2 mt-2 text-sm font-bold p-2.5 rounded-xl border ${hoverEstSoC < 0 ? 'bg-red-50 text-red-600 border-red-100' :
+                                        hoverEstSoC < 20 ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                    }`}>
+                                    <Zap className="w-4 h-4 mt-0.5 shrink-0" />
+                                    <span className="leading-tight">
+                                        {hoverEstSoC < 0
+                                            ? 'Too far! Not enough battery to reach this station.'
+                                            : `Est. Arrival Battery: ~${hoverEstSoC}%`}
+                                    </span>
                                 </div>
                             )}
 
