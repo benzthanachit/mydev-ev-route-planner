@@ -3,13 +3,13 @@
 import { useRouteStore } from "@/store/useRouteStore";
 import { useEVStore } from "@/store/useEVStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin } from "lucide-react";
+import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles } from "lucide-react";
 import { useState } from "react";
 import turfDistance from "@turf/distance";
 import { point } from "@turf/helpers";
 
 export default function RouteBottomSheet() {
-    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute, origin, destination } = useRouteStore();
+    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute, origin, destination, chargingWaypoints, fetchAISuggestions, isFetchingAI } = useRouteStore();
     const { currentSoC, maxRange, maxChargePowerKw, batteryCapacity } = useEVStore();
 
     const [isExpanded, setIsExpanded] = useState(false);
@@ -117,7 +117,27 @@ export default function RouteBottomSheet() {
                         </div>
                     </div>
 
-                    <h3 className="text-gray-900 font-extrabold text-xl mb-6">Route Plan</h3>
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-gray-900 font-extrabold text-xl">Route Plan</h3>
+
+                        {/* Manual AI Trigger Button */}
+                        {chargingWaypoints.length > 0 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation(); // prevent drag expansion collision
+                                    fetchAISuggestions(chargingWaypoints, totalDistanceKm);
+                                }}
+                                disabled={isFetchingAI}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 ${isFetchingAI
+                                        ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
+                                    }`}
+                            >
+                                <Sparkles className={`w-4 h-4 ${isFetchingAI ? 'animate-spin' : ''}`} />
+                                {isFetchingAI ? 'Thinking...' : 'Auto Plan'}
+                            </button>
+                        )}
+                    </div>
 
                     <div className="flex flex-col gap-6 relative before:absolute before:inset-0 before:left-[19px] before:w-[3px] before:bg-gray-200">
 

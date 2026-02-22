@@ -213,11 +213,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                 recommendedStationIds: recommendedIds
             });
 
-            // Trigger AI Suggestions only if it's the initial route request (no waypoints manually added yet) 
-            // and the route is long enough to consider charging (> 50km) and we found stations along the route.
-            if (get().selectedWaypoints.length === 0 && distKm > 50 && stations.length > 0) {
-                get().fetchAISuggestions(stations, distKm);
-            }
+            // Trigger AI Suggestions automatically has been REMOVED per user request
+            // We now rely on a manual button in the UI to trigger AI suggestions.
 
         } catch (error) {
             console.error("Error calculating route:", error);
