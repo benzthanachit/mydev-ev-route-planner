@@ -8,6 +8,7 @@ import RouteBottomSheet from "@/components/RouteDetails/RouteBottomSheet";
 import EVSettingsModal from "@/components/Settings/EVSettingsModal";
 import AIRouteSuggestModal from "@/components/Navigation/AIRouteSuggestModal";
 import SavedRoutesModal from "@/components/Navigation/SavedRoutesModal";
+import AuthButton from "@/components/Auth/AuthButton";
 import { Settings, Zap, Bookmark } from "lucide-react";
 import Link from "next/link";
 
@@ -24,33 +25,38 @@ export default function Home() {
       <RouteSearch />
 
       {/* Floating Actions Container (Top Right) */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col gap-3 items-end">
-        {/* Saved Routes Button */}
-        <button
-          onClick={() => setIsSavedRoutesOpen(true)}
-          className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-indigo-600 hover:border-indigo-500 transition-colors group"
-          title="Saved Routes"
-        >
-          <Bookmark className="w-6 h-6 text-indigo-400 group-hover:text-white" />
-        </button>
+      <div className="absolute top-4 right-4 z-20 flex gap-2 sm:gap-3 items-end">
+        {/* Auth Button */}
+        <AuthButton />
 
-        {/* Settings Button */}
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-gray-800 transition-colors"
-          title="EV Settings"
-        >
-          <Settings className="w-6 h-6 text-gray-400 hover:text-white" />
-        </button>
+        <div className="flex flex-col gap-2 sm:gap-3 items-end">
+          {/* Saved Routes Button */}
+          <button
+            onClick={() => setIsSavedRoutesOpen(true)}
+            className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-indigo-600 hover:border-indigo-500 transition-colors group"
+            title="Saved Routes"
+          >
+            <Bookmark className="w-6 h-6 text-indigo-400 group-hover:text-white" />
+          </button>
 
-        {/* Stations List Button */}
-        <Link
-          href="/stations"
-          className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-emerald-600 hover:border-emerald-500 transition-colors group"
-          title="All Charging Stations"
-        >
-          <Zap className="w-6 h-6 text-emerald-400 group-hover:text-white" />
-        </Link>
+          {/* Settings Button */}
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-gray-800 transition-colors"
+            title="EV Settings"
+          >
+            <Settings className="w-6 h-6 text-gray-400 hover:text-white" />
+          </button>
+
+          {/* Stations List Button */}
+          <Link
+            href="/stations"
+            className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-emerald-600 hover:border-emerald-500 transition-colors group"
+            title="All Charging Stations"
+          >
+            <Zap className="w-6 h-6 text-emerald-400 group-hover:text-white" />
+          </Link>
+        </div>
       </div>
 
       {/* Live navigation dashboard overlay at the bottom */}

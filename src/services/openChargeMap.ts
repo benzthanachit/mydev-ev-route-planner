@@ -204,7 +204,7 @@ export async function getStationsAlongRoute(
         // 3. Filter stations to only those strictly within the buffer distance of the route
         const filteredStations = data.filter(station => {
             const pt = turf.point([station.AddressInfo.Longitude, station.AddressInfo.Latitude]);
-            const dist = turf.pointToLineDistance(pt, routeLine, { units: 'kilometers' });
+            const dist = (turf as any).pointToLineDistance(pt, routeLine, { units: 'kilometers' });
             return dist <= distanceKm;
         });
 
