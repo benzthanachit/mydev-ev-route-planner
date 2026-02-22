@@ -6,6 +6,7 @@ import LiveDashboard from "@/components/Navigation/LiveDashboard";
 import RouteSearch from "@/components/Navigation/RouteSearch";
 import RouteBottomSheet from "@/components/RouteDetails/RouteBottomSheet";
 import EVSettingsModal from "@/components/Settings/EVSettingsModal";
+import AIRouteSuggestModal from "@/components/Navigation/AIRouteSuggestModal";
 import { Settings, Zap } from "lucide-react";
 import Link from "next/link";
 
@@ -49,6 +50,9 @@ export default function Home() {
 
       {/* Settings Modal */}
       <EVSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+      {/* AI Suggestion Modal */}
+      <AIRouteSuggestModal />
     </main>
   );
 }

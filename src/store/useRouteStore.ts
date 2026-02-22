@@ -13,6 +13,14 @@ export interface LocationPoint {
     stationMaxChargeRateKw?: number;
 }
 
+export interface AIPlan {
+    planName: string;
+    description: string;
+    reasoning: string;
+    estimatedTotalChargeTimeMinutes: number;
+    stationIds: string[];
+}
+
 export interface RouteState {
     origin: LocationPoint | null;
     destination: LocationPoint | null;
@@ -25,6 +33,12 @@ export interface RouteState {
     selectedWaypoints: LocationPoint[]; // User-selected charging stops
     recommendedStationIds: string[]; // IDs of stations that fall in the <30% SoC zone
 
+    // AI Suggestions State
+    aiSuggestions: AIPlan[];
+    isFetchingAI: boolean;
+    showAIModal: boolean;
+    aiError: string | null;
+
     // Actions
     setOrigin: (loc: LocationPoint | null) => void;
     setDestination: (loc: LocationPoint | null) => void;
@@ -32,6 +46,8 @@ export interface RouteState {
     addSelectedWaypoint: (waypoint: LocationPoint) => void;
     removeSelectedWaypoint: (stationId: string) => void;
     calculateRoute: () => void;
+    setShowAIModal: (show: boolean) => void;
+    fetchAISuggestions: (stations: GooglePlaceStation[], distKm: number) => Promise<void>;
 }
 
 export const useRouteStore = create<RouteState>((set, get) => ({
@@ -44,6 +60,11 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     selectedWaypoints: [],
     recommendedStationIds: [],
 
+    aiSuggestions: [],
+    isFetchingAI: false,
+    showAIModal: false,
+    aiError: null,
+
     setOrigin: (loc) => set({ origin: loc }),
     setDestination: (loc) => set({ destination: loc }),
     setViewportStations: (stations) => set({ viewportStations: stations }),
@@ -51,6 +72,46 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     removeSelectedWaypoint: (id) => set((state) => ({
         selectedWaypoints: state.selectedWaypoints.filter(w => (w.googleStationId || w.id) !== id)
     })),
+    setShowAIModal: (show) => set({ showAIModal: show }),
+
+    fetchAISuggestions: async (stations: GooglePlaceStation[], distKm: number) => {
+        set({ isFetchingAI: true, showAIModal: true, aiSuggestions: [], aiError: null });
+        try {
+            const evState = useEVStore.getState();
+            // Send top 20 closest to route to save token count
+            const topStations = stations.slice(0, 20);
+
+            const res = await fetch('/api/ai-route', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    evProfile: {
+                        batteryCapacity: evState.batteryCapacity,
+                        currentSoC: evState.currentSoC,
+                        maxRange: evState.maxRange,
+                        maxChargePowerKw: evState.maxChargePowerKw,
+                        connectorType: evState.connectorType
+                    },
+                    routeDetails: { totalDistanceKm: distKm },
+                    stations: topStations
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.plans) set({ aiSuggestions: data.plans });
+            } else {
+                const errText = await res.text();
+                console.error("Failed to fetch AI routes", errText);
+                set({ aiError: "Failed to generate AI plans. Please check your Gemini API Key." });
+            }
+        } catch (error) {
+            console.error(error);
+            set({ aiError: "Network error occurred connecting to AI." });
+        } finally {
+            set({ isFetchingAI: false });
+        }
+    },
 
     // Fetch real route from Mapbox Directions API
     calculateRoute: async () => {
@@ -141,6 +202,12 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                 viewportStations: [],
                 recommendedStationIds: recommendedIds
             });
+
+            // Trigger AI Suggestions only if it's the initial route request (no waypoints manually added yet) 
+            // and the route is long enough to consider charging (> 50km) and we found stations along the route.
+            if (get().selectedWaypoints.length === 0 && distKm > 50 && stations.length > 0) {
+                get().fetchAISuggestions(stations, distKm);
+            }
 
         } catch (error) {
             console.error("Error calculating route:", error);
