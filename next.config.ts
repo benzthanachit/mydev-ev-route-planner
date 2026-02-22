@@ -7,6 +7,7 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   turbopack: {},
   transpilePackages: ['react-map-gl', 'mapbox-gl'],
 };

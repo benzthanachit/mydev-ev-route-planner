@@ -2,11 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { Battery, Zap, MapPin, Gauge } from "lucide-react";
+import { useRouteStore } from "@/store/useRouteStore";
+import turfDistance from "@turf/distance";
+import { point } from "@turf/helpers";
 
 export default function LiveDashboard() {
+    const { origin, destination, selectedWaypoints, totalDistanceKm } = useRouteStore();
     const [speedKnots, setSpeedKnots] = useState<number | null>(null);
-    const [distanceToNextStop, setDistanceToNextStop] = useState<number>(120); // Placeholder 120km
-    const [totalDistance, setTotalDistance] = useState<number>(350); // Placeholder 350km
+
+    // Calculate distance to next actual stop
+    let nextStopDistanceKm = 0;
+    if (origin) {
+        if (selectedWaypoints.length > 0) {
+            nextStopDistanceKm = turfDistance(point(origin.coordinates), point(selectedWaypoints[0].coordinates), { units: 'kilometers' } as any) * 1.2;
+        } else if (destination) {
+            nextStopDistanceKm = totalDistanceKm || 0;
+        }
+    }
+    const displayNextStop = origin && (selectedWaypoints.length > 0 || destination) ? Math.round(nextStopDistanceKm) : "--";
+    const displayTotal = totalDistanceKm ? Math.round(totalDistanceKm) : "--";
 
     useEffect(() => {
         // Watch user's geolocation for speed tracking
@@ -59,12 +73,12 @@ export default function LiveDashboard() {
                         Next Stop
                     </div>
                     <div className="text-3xl font-black tabular-nums text-gray-900">
-                        {distanceToNextStop}
+                        {displayNextStop}
                         <span className="text-sm font-semibold text-gray-400 ml-1">km</span>
                     </div>
                     <div className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-1">
                         <MapPin className="w-3 h-3 text-red-400" />
-                        Destination: {totalDistance}km
+                        Destination: {displayTotal}km
                     </div>
                 </div>
 
