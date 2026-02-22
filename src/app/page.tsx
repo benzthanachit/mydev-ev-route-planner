@@ -7,11 +7,13 @@ import RouteSearch from "@/components/Navigation/RouteSearch";
 import RouteBottomSheet from "@/components/RouteDetails/RouteBottomSheet";
 import EVSettingsModal from "@/components/Settings/EVSettingsModal";
 import AIRouteSuggestModal from "@/components/Navigation/AIRouteSuggestModal";
-import { Settings, Zap } from "lucide-react";
+import SavedRoutesModal from "@/components/Navigation/SavedRoutesModal";
+import { Settings, Zap, Bookmark } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSavedRoutesOpen, setIsSavedRoutesOpen] = useState(false);
 
   return (
     <main className="relative w-full h-[100dvh] overflow-hidden bg-black flex flex-col items-center justify-between">
@@ -23,6 +25,15 @@ export default function Home() {
 
       {/* Floating Actions Container (Top Right) */}
       <div className="absolute top-4 right-4 z-20 flex flex-col gap-3 items-end">
+        {/* Saved Routes Button */}
+        <button
+          onClick={() => setIsSavedRoutesOpen(true)}
+          className="bg-gray-900/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-800 text-white hover:bg-indigo-600 hover:border-indigo-500 transition-colors group"
+          title="Saved Routes"
+        >
+          <Bookmark className="w-6 h-6 text-indigo-400 group-hover:text-white" />
+        </button>
+
         {/* Settings Button */}
         <button
           onClick={() => setIsSettingsOpen(true)}
@@ -53,6 +64,9 @@ export default function Home() {
 
       {/* AI Suggestion Modal */}
       <AIRouteSuggestModal />
+
+      {/* Saved Routes Modal */}
+      <SavedRoutesModal isOpen={isSavedRoutesOpen} onClose={() => setIsSavedRoutesOpen(false)} />
     </main>
   );
 }

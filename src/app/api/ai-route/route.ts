@@ -23,10 +23,11 @@ export async function POST(req: Request) {
 
         const prompt = `You are an expert EV Route Planner. I will provide you with the user's EV profile, their route details, and a list of available charging stations along the route.
 
-CRITICAL RULE (The Charging Sweet Spot):
+CRITICAL RULE (The Charging Sweet Spot with Terrain Penalty):
 You MUST select charging stations such that the EV arrives at each station with roughly 20% to 40% battery remaining. 
-- You can calculate the arrival battery % mathematically:
-  Arrival SoC = Current SoC - ((Distance to Station / EV Max Range) * 100).
+- You can calculate the arrival battery % mathematically, incorporating an elevation penalty (driving uphill consumes more battery):
+  Arrival SoC = Current SoC - ((Distance to Station / EV Max Range) * 100) - ((Elevation Gain to Station in meters / 100) * 1)
+- The elevation penalty assumes roughly 1% of battery is consumed for every 100 meters of elevation gain.
 - Do not let the Arrival SoC drop below 5% (to avoid running out of charge).
 - Do not suggest stopping at a station if the Arrival SoC is > 50% unless absolutely necessary, as charging at high SoC is slow.
 
@@ -47,12 +48,14 @@ Return the response as a JSON array containing exactly 3 objects. Each object mu
 Data:
 EV Profile: ${JSON.stringify(evProfile)}
 Route Distance (km): ${routeDetails.totalDistanceKm}
+Route Elevation Gain (m): ${routeDetails.totalElevationGainMeters || 0}
 Available Stations:
 ${JSON.stringify(stations.map((s: any) => ({
             id: s.id,
             name: s.locationName || s.name || s.displayName?.text,
             rating: s.rating,
             distanceFromOriginKm: s.distanceFromOriginKm,
+            elevationGainMeters: s.elevationGainMeters,
             evChargeOptions: s.evChargeOptions
         })))}
 `;

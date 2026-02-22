@@ -2,8 +2,9 @@
 
 import { useRouteStore } from "@/store/useRouteStore";
 import { useEVStore } from "@/store/useEVStore";
+import { useSavedRoutesStore } from "@/store/useSavedRoutesStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles, Battery, ExternalLink } from "lucide-react";
+import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles, Battery, ExternalLink, BookmarkPlus, Check, X } from "lucide-react";
 import { useState } from "react";
 import turfDistance from "@turf/distance";
 import { point } from "@turf/helpers";
@@ -11,8 +12,11 @@ import { point } from "@turf/helpers";
 export default function RouteBottomSheet() {
     const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute, origin, destination, chargingWaypoints, fetchAISuggestions, isFetchingAI } = useRouteStore();
     const { currentSoC, maxRange, maxChargePowerKw, batteryCapacity } = useEVStore();
+    const saveRoute = useSavedRoutesStore(state => state.saveRoute);
 
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isSavingRoute, setIsSavingRoute] = useState(false);
+    const [routeNameInput, setRouteNameInput] = useState("");
 
     if (!totalDistanceKm) return null;
 
@@ -152,34 +156,92 @@ export default function RouteBottomSheet() {
 
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2">
-                            {/* Export to Google Maps Button */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    exportToGoogleMaps();
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-blue-600"
-                            >
-                                <ExternalLink className="w-4 h-4" />
-                                Export
-                            </button>
+                            {isSavingRoute ? (
+                                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl p-1 shadow-inner h-[34px]">
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        value={routeNameInput}
+                                        onChange={(e) => setRouteNameInput(e.target.value)}
+                                        placeholder="Name this route..."
+                                        className="text-sm px-2 py-0 bg-transparent border-none outline-none text-gray-800 w-28 md:w-40 font-medium"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (routeNameInput.trim() && origin && destination) {
+                                                saveRoute({
+                                                    name: routeNameInput.trim(),
+                                                    origin,
+                                                    destination,
+                                                    waypoints: selectedWaypoints
+                                                });
+                                                setIsSavingRoute(false);
+                                                setRouteNameInput("");
+                                            }
+                                        }}
+                                        className="p-1 bg-green-500 text-white rounded-lg hover:bg-green-600 shadow-sm"
+                                    >
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSavingRoute(false);
+                                        }}
+                                        className="p-1 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 shadow-sm"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSavingRoute(true);
+                                            const defaultName = origin?.name && destination?.name
+                                                ? `${origin.name.split(',')[0]} \u2192 ${destination.name.split(',')[0]}`
+                                                : "My Saved Route";
+                                            setRouteNameInput(defaultName);
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100"
+                                    >
+                                        <BookmarkPlus className="w-4 h-4" />
+                                        Save
+                                    </button>
 
-                            {/* Manual AI Trigger Button */}
-                            {chargingWaypoints.length > 0 && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation(); // prevent drag expansion collision
-                                        fetchAISuggestions(chargingWaypoints, totalDistanceKm);
-                                    }}
-                                    disabled={isFetchingAI}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 ${isFetchingAI
-                                        ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
-                                        }`}
-                                >
-                                    <Sparkles className={`w-4 h-4 ${isFetchingAI ? 'animate-spin' : ''}`} />
-                                    {isFetchingAI ? 'Thinking...' : 'Auto Plan'}
-                                </button>
+                                    {/* Export to Google Maps Button */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            exportToGoogleMaps();
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-blue-600"
+                                    >
+                                        <ExternalLink className="w-4 h-4" />
+                                        Export
+                                    </button>
+
+                                    {/* Manual AI Trigger Button */}
+                                    {chargingWaypoints.length > 0 && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // prevent drag expansion collision
+                                                fetchAISuggestions(chargingWaypoints, totalDistanceKm);
+                                            }}
+                                            disabled={isFetchingAI}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 ${isFetchingAI
+                                                ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
+                                                }`}
+                                        >
+                                            <Sparkles className={`w-4 h-4 ${isFetchingAI ? 'animate-spin' : ''}`} />
+                                            {isFetchingAI ? 'Thinking...' : 'Auto Plan'}
+                                        </button>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>

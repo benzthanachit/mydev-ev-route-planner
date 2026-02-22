@@ -26,6 +26,8 @@ export interface RouteState {
     destination: LocationPoint | null;
     routeCoordinates: [number, number][] | null; // For drawing the path on Mapbox
     totalDistanceKm: number | null;
+    totalElevationGainMeters: number | null;
+    totalElevationLossMeters: number | null;
     chargingWaypoints: GooglePlaceStation[]; // Fetched full stations along the route
 
     // Interactive Map State
@@ -45,6 +47,7 @@ export interface RouteState {
     setViewportStations: (stations: GooglePlaceStation[]) => void;
     addSelectedWaypoint: (waypoint: LocationPoint) => void;
     removeSelectedWaypoint: (stationId: string) => void;
+    setWaypoints: (waypoints: LocationPoint[]) => void;
     calculateRoute: () => void;
     setShowAIModal: (show: boolean) => void;
     fetchAISuggestions: (stations: GooglePlaceStation[], distKm: number) => Promise<void>;
@@ -55,6 +58,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     destination: null,
     routeCoordinates: null,
     totalDistanceKm: null,
+    totalElevationGainMeters: null,
+    totalElevationLossMeters: null,
     chargingWaypoints: [],
     viewportStations: [],
     selectedWaypoints: [],
@@ -72,6 +77,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     removeSelectedWaypoint: (id) => set((state) => ({
         selectedWaypoints: state.selectedWaypoints.filter(w => (w.googleStationId || w.id) !== id)
     })),
+    setWaypoints: (waypoints) => set({ selectedWaypoints: waypoints }),
     setShowAIModal: (show) => set({ showAIModal: show }),
 
     fetchAISuggestions: async (stations: GooglePlaceStation[], distKm: number) => {
@@ -93,7 +99,10 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                         maxChargePowerKw: evState.maxChargePowerKw,
                         connectorType: evState.connectorType
                     },
-                    routeDetails: { totalDistanceKm: distKm },
+                    routeDetails: {
+                        totalDistanceKm: distKm,
+                        totalElevationGainMeters: get().totalElevationGainMeters || 0
+                    },
                     stations: topStations.map(st => {
                         const originCoords = get().origin?.coordinates;
                         let distanceFromOriginKm = 0;
@@ -105,9 +114,19 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                                 // Add a * 1.2 routing factor to approximate road distance vs straight line
                             ) * 1.2;
                         }
+
+                        // Approximate elevation gain to station
+                        // A simple interpolation based on distance
+                        const totalGain = get().totalElevationGainMeters || 0;
+                        const totalDist = get().totalDistanceKm || 1; // avoid division by zero
+                        // Cap distance proportion to 1.0 to avoid extrapolating beyond total distance
+                        const distProportion = Math.min(distanceFromOriginKm / totalDist, 1.0);
+                        const elevationGainMeters = Math.round(distProportion * totalGain);
+
                         return {
                             ...st,
-                            distanceFromOriginKm: parseFloat(distanceFromOriginKm.toFixed(1))
+                            distanceFromOriginKm: parseFloat(distanceFromOriginKm.toFixed(1)),
+                            elevationGainMeters
                         };
                     })
                 })
@@ -174,6 +193,19 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                 routeCoordinates: geojsonCoords,
                 totalDistanceKm: distKm,
             });
+
+            // Fetch elevation data
+            try {
+                const { getElevationForCoordinates } = await import('@/services/elevation');
+                const elevationResult = await getElevationForCoordinates(geojsonCoords, mapboxToken);
+                set({
+                    totalElevationGainMeters: elevationResult.totalGainMeters,
+                    totalElevationLossMeters: elevationResult.totalLossMeters,
+                });
+                console.log(`[ELEVATION] Total Gain: ${Math.round(elevationResult.totalGainMeters)}m, Total Loss: ${Math.round(elevationResult.totalLossMeters)}m`);
+            } catch (eleError) {
+                console.error("Failed to fetch elevation data", eleError);
+            }
 
             // 2. Fetch charging stations along the route using Google Places API (10km buffer)
             const { getStationsAlongRoute } = await import('@/services/googlePlaces');
