@@ -3,7 +3,7 @@
 import { useRouteStore } from "@/store/useRouteStore";
 import { useEVStore } from "@/store/useEVStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles, Battery } from "lucide-react";
+import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles, Battery, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import turfDistance from "@turf/distance";
 import { point } from "@turf/helpers";
@@ -75,6 +75,27 @@ export default function RouteBottomSheet() {
         destSoC = Math.round(currentSoCForLeg - destSocDrop);
     }
 
+    // Generate Google Maps Directions URL
+    const exportToGoogleMaps = () => {
+        if (!origin || !destination) return;
+
+        const originStr = `${origin.coordinates[1]},${origin.coordinates[0]}`;
+        const destStr = `${destination.coordinates[1]},${destination.coordinates[0]}`;
+
+        let url = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destStr}`;
+
+        if (selectedWaypoints.length > 0) {
+            // Google Maps uses latitude,longitude for waypoints, separated by a pipe '|'
+            const waypointsStr = selectedWaypoints
+                .map(wp => `${wp.coordinates[1]},${wp.coordinates[0]}`)
+                .join('|');
+            url += `&waypoints=${waypointsStr}`;
+        }
+
+        // Open in new tab (will launch Google Maps app on mobile if installed)
+        window.open(url, '_blank');
+    };
+
     return (
         <AnimatePresence>
             <motion.div
@@ -129,23 +150,38 @@ export default function RouteBottomSheet() {
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-gray-900 font-extrabold text-xl">Route Plan</h3>
 
-                        {/* Manual AI Trigger Button */}
-                        {chargingWaypoints.length > 0 && (
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2">
+                            {/* Export to Google Maps Button */}
                             <button
                                 onClick={(e) => {
-                                    e.stopPropagation(); // prevent drag expansion collision
-                                    fetchAISuggestions(chargingWaypoints, totalDistanceKm);
+                                    e.stopPropagation();
+                                    exportToGoogleMaps();
                                 }}
-                                disabled={isFetchingAI}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 ${isFetchingAI
-                                    ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
-                                    }`}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-blue-600"
                             >
-                                <Sparkles className={`w-4 h-4 ${isFetchingAI ? 'animate-spin' : ''}`} />
-                                {isFetchingAI ? 'Thinking...' : 'Auto Plan'}
+                                <ExternalLink className="w-4 h-4" />
+                                Export
                             </button>
-                        )}
+
+                            {/* Manual AI Trigger Button */}
+                            {chargingWaypoints.length > 0 && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // prevent drag expansion collision
+                                        fetchAISuggestions(chargingWaypoints, totalDistanceKm);
+                                    }}
+                                    disabled={isFetchingAI}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 ${isFetchingAI
+                                        ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
+                                        }`}
+                                >
+                                    <Sparkles className={`w-4 h-4 ${isFetchingAI ? 'animate-spin' : ''}`} />
+                                    {isFetchingAI ? 'Thinking...' : 'Auto Plan'}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex flex-col gap-6 relative before:absolute before:inset-0 before:left-[19px] before:w-[3px] before:bg-gray-200">
