@@ -40,6 +40,15 @@ A modern, mobile-first Progressive Web Application (PWA) designed to help Electr
 - Seamlessly transition from planning to driving.
 - One-click export generates a precise Google Maps Navigation URL (`dir/?api=1...`) containing your Origin, Target Destination, and every Charging Stop perfectly ordered as waypoints.
 
+### 8. ⛰️ Elevation & Terrain Penalty
+- Predicts battery drain accurately by fetching route elevation profiles via the **Mapbox Tilequery API**.
+- Calculates cumulative elevation gain/loss for the journey.
+- The AI algorithm applies a "Terrain Penalty Weight" (modeling % loss per 100m climbed) to adjust Arrival SoC on mountainous routes autonomously.
+
+### 9. 💾 Saved "Standard" Routes
+- Save and name your frequently traveled long-distance journeys (e.g., "Home -> Pattaya").
+- Instantly reloads the origin, destination, and all manually/AI-selected charging waypoints with a single click from the dedicated Saved Routes menu.
+
 ---
 
 ## 🛠️ Technology Stack
@@ -47,7 +56,7 @@ A modern, mobile-first Progressive Web Application (PWA) designed to help Electr
 - **Framework:** Next.js 15 (React 19)
 - **Styling:** Tailwind CSS V4
 - **State Management:** Zustand (with persist middleware)
-- **Maps & Geocoding:** Mapbox GL JS (`react-map-gl`), Mapbox Search JS
+- **Maps & Geocoding:** Mapbox GL JS (`react-map-gl`), Mapbox Search JS, Mapbox Tilequery API (Terrain & Elevation)
 - **Station Data:** Google Maps Places API (New API supporting `evChargeOptions`)
 - **Geospatial Maths:** Turf.js (`@turf/distance`, `@turf/point-to-line-distance`, etc.)
 - **AI / LLM:** Google Gen AI SDK (`@google/generative-ai`) targeting Gemini 2.5 Flash
