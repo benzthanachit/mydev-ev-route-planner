@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouteStore } from "@/store/useRouteStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { Star, MapPin, Navigation, ArrowRight, X } from "lucide-react";
+import { useEVStore } from "@/store/useEVStore";
+import { Star, MapPin, Navigation, ArrowRight, X, Battery } from "lucide-react";
 import dynamic from 'next/dynamic';
 
 const SearchBox = dynamic(() => import('@mapbox/search-js-react').then(mod => mod.SearchBox), {
@@ -13,6 +14,7 @@ const SearchBox = dynamic(() => import('@mapbox/search-js-react').then(mod => mo
 export default function RouteSearch() {
     const { origin, destination, setOrigin, setDestination, calculateRoute, totalDistanceKm } = useRouteStore();
     const { favorites, removeFavorite } = useFavoritesStore();
+    const { currentSoC, setCurrentSoC } = useEVStore();
 
     const [originInput, setOriginInput] = useState("");
     const [destInput, setDestInput] = useState("");
@@ -130,6 +132,26 @@ export default function RouteSearch() {
                         </div>
                     </div>
                 )}
+
+                {/* Pre-Route SoC Input */}
+                <div className="flex flex-col gap-2 mt-2 px-2">
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="font-bold text-gray-700 flex items-center gap-1.5">
+                            <Battery className="w-4 h-4 text-emerald-500" />
+                            Starting Battery
+                        </span>
+                        <span className="font-black text-emerald-600">{currentSoC}%</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="5"
+                        max="100"
+                        step="1"
+                        value={currentSoC}
+                        onChange={(e) => setCurrentSoC(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                </div>
 
                 {/* Action Button */}
                 <div className="flex items-center justify-between mt-2 pl-2 border-t border-gray-100 pt-4">

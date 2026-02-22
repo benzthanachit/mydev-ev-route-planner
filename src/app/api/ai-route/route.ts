@@ -23,8 +23,15 @@ export async function POST(req: Request) {
 
         const prompt = `You are an expert EV Route Planner. I will provide you with the user's EV profile, their route details, and a list of available charging stations along the route.
 
+CRITICAL RULE (The Charging Sweet Spot):
+You MUST select charging stations such that the EV arrives at each station with roughly 20% to 40% battery remaining. 
+- You can calculate the arrival battery % mathematically:
+  Arrival SoC = Current SoC - ((Distance to Station / EV Max Range) * 100).
+- Do not let the Arrival SoC drop below 5% (to avoid running out of charge).
+- Do not suggest stopping at a station if the Arrival SoC is > 50% unless absolutely necessary, as charging at high SoC is slow.
+
 Your task is to analyze this data and generate exactly 3 distinct charging plans.
-1. "Fastest Arrival": Focus on minimizing total travel and charge time (use the highest kW stations).
+1. "Fastest Arrival": Focus on minimizing total travel and charge time (use the highest kW stations closest to the 20% sweet spot).
 2. "Relaxed Journey": Focus on highly-rated stations or stations with many amenities, spacing out stops comfortably.
 3. "High Power Only": Strictly use stations with > 50kW chargers.
 
@@ -32,7 +39,7 @@ Return the response as a JSON array containing exactly 3 objects. Each object mu
 {
     "planName": "Name of the plan (e.g., Fastest Arrival)",
     "description": "A short 1-sentence description of the plan strategy.",
-    "reasoning": "A 1-2 sentence explanation of why this plan was chosen based on the provided stations.",
+    "reasoning": "A 1-2 sentence explanation of why this plan was chosen based on the provided stations and how it hits the 20-40% sweet spot.",
     "estimatedTotalChargeTimeMinutes": 45,
     "stationIds": ["station_id_1", "station_id_2"]
 }
@@ -40,11 +47,12 @@ Return the response as a JSON array containing exactly 3 objects. Each object mu
 Data:
 EV Profile: ${JSON.stringify(evProfile)}
 Route Distance (km): ${routeDetails.totalDistanceKm}
-Available Stations (Top 20 closest to route):
+Available Stations:
 ${JSON.stringify(stations.map((s: any) => ({
             id: s.id,
             name: s.locationName || s.name || s.displayName?.text,
             rating: s.rating,
+            distanceFromOriginKm: s.distanceFromOriginKm,
             evChargeOptions: s.evChargeOptions
         })))}
 `;

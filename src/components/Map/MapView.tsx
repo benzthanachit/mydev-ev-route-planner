@@ -193,11 +193,10 @@ export default function MapView() {
         return {
             type: "FeatureCollection",
             features: sourceStations.map(st => {
-                const isLocationPoint = (st as any).coordinates !== undefined;
-                const lng = isLocationPoint ? (st as any).coordinates[0] : (st as any).location.longitude;
-                const lat = isLocationPoint ? (st as any).coordinates[1] : (st as any).location.latitude;
-                const name = isLocationPoint ? (st as any).name : (st as any).displayName?.text;
-                const id = isLocationPoint ? (st as any).googleStationId : (st as any).id;
+                const lng = st.location.longitude;
+                const lat = st.location.latitude;
+                const name = st.displayName?.text || 'Charging Station';
+                const id = st.id;
 
                 const isRecommended = recommendedStationIds.includes(id);
                 const isSelected = selectedWaypoints.some(wp => wp.googleStationId === id);
@@ -563,6 +562,28 @@ export default function MapView() {
                         </div>
                     </Marker>
                 )}
+
+                {/* Draw Selected Waypoints Markers */}
+                {selectedWaypoints.map((wp, idx) => (
+                    <Marker key={`selected-${idx}`} longitude={wp.coordinates[0]} latitude={wp.coordinates[1]} anchor="bottom">
+                        <div
+                            className="bg-emerald-500 text-white p-2 rounded-full border-[3px] border-white shadow-xl shadow-emerald-500/50 cursor-pointer hover:scale-110 transition-transform relative"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const fullStation = chargingWaypoints.find(w => w.id === wp.googleStationId) || viewportStations.find(w => w.id === wp.googleStationId);
+                                setHoverInfo({
+                                    longitude: wp.coordinates[0],
+                                    latitude: wp.coordinates[1],
+                                    station: fullStation || { displayName: { text: wp.name }, id: wp.googleStationId }
+                                });
+                            }}
+                        >
+                            <Zap className="w-5 h-5 fill-white" />
+                            {/* Small indicator dot to show route sequence if needed, or just a nice aesthetic */}
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border-2 border-white rounded-full"></div>
+                        </div>
+                    </Marker>
+                ))}
             </Map>
         </div>
     );

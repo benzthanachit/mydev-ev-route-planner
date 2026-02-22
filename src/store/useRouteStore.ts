@@ -26,7 +26,7 @@ export interface RouteState {
     destination: LocationPoint | null;
     routeCoordinates: [number, number][] | null; // For drawing the path on Mapbox
     totalDistanceKm: number | null;
-    chargingWaypoints: LocationPoint[]; // Auto-generated or fetched stations along the route
+    chargingWaypoints: GooglePlaceStation[]; // Fetched full stations along the route
 
     // Interactive Map State
     viewportStations: GooglePlaceStation[]; // Stations visible in current map view
@@ -78,8 +78,9 @@ export const useRouteStore = create<RouteState>((set, get) => ({
         set({ isFetchingAI: true, showAIModal: true, aiSuggestions: [], aiError: null });
         try {
             const evState = useEVStore.getState();
-            // Send top 20 closest to route to save token count
-            const topStations = stations.slice(0, 20);
+            // Send up to 150 stations along the route to ensure the AI has visibility of the entire journey 
+            // and can select stations that match the 20-40% SoC arrival rule.
+            const topStations = stations.slice(0, 150);
 
             const res = await fetch('/api/ai-route', {
                 method: 'POST',
@@ -93,7 +94,22 @@ export const useRouteStore = create<RouteState>((set, get) => ({
                         connectorType: evState.connectorType
                     },
                     routeDetails: { totalDistanceKm: distKm },
-                    stations: topStations
+                    stations: topStations.map(st => {
+                        const originCoords = get().origin?.coordinates;
+                        let distanceFromOriginKm = 0;
+                        if (originCoords) {
+                            distanceFromOriginKm = turfDistance(
+                                point(originCoords),
+                                point([st.location.longitude, st.location.latitude]),
+                                { units: 'kilometers' } as any
+                                // Add a * 1.2 routing factor to approximate road distance vs straight line
+                            ) * 1.2;
+                        }
+                        return {
+                            ...st,
+                            distanceFromOriginKm: parseFloat(distanceFromOriginKm.toFixed(1))
+                        };
+                    })
                 })
             });
 
@@ -163,12 +179,6 @@ export const useRouteStore = create<RouteState>((set, get) => ({
             const { getStationsAlongRoute } = await import('@/services/googlePlaces');
             const stations = await getStationsAlongRoute(geojsonCoords, 10);
 
-            const waypoints: LocationPoint[] = stations.map(st => ({
-                name: st.displayName?.text || 'Charging Station',
-                coordinates: [st.location.longitude, st.location.latitude],
-                googleStationId: st.id
-            }));
-
             // 3. Recommended Stations Logic
             // Calculate distance from the *last* stop (or origin) to predict where the battery drops below 30%
             const evState = useEVStore.getState();
@@ -198,7 +208,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
             // Complete calculate routine: clear viewport stations so map shows only route stations
             set({
-                chargingWaypoints: waypoints,
+                chargingWaypoints: stations,
                 viewportStations: [],
                 recommendedStationIds: recommendedIds
             });

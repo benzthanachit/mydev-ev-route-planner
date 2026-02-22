@@ -13,9 +13,20 @@ export default function AIRouteSuggestModal() {
         // Map station IDs to LocationPoint objects. AI only has stationIDs.
         // We look for them in chargingWaypoints (the stations fetched along the route).
         stationIds.forEach(id => {
-            const stationData = chargingWaypoints.find(w => w.googleStationId === id);
+            const stationData = chargingWaypoints.find(w => w.id === id);
             if (stationData) {
-                addSelectedWaypoint(stationData);
+                let maxKw = 0;
+                const options = stationData.evChargeOptions?.connectorAggregation;
+                if (options && options.length > 0) {
+                    maxKw = Math.max(...options.map((conn: any) => conn.maxChargeRateKw || 0));
+                }
+
+                addSelectedWaypoint({
+                    name: stationData.displayName?.text || 'Charging Station',
+                    coordinates: [stationData.location.longitude, stationData.location.latitude],
+                    googleStationId: stationData.id,
+                    stationMaxChargeRateKw: maxKw > 0 ? maxKw : undefined
+                });
             }
         });
         setShowAIModal(false);
