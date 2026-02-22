@@ -50,6 +50,7 @@ export interface RouteState {
     removeSelectedWaypoint: (stationId: string) => void;
     setWaypoints: (waypoints: LocationPoint[]) => void;
     calculateRoute: () => void;
+    clearRoute: () => void;
     setShowAIModal: (show: boolean) => void;
     fetchAISuggestions: (stations: GooglePlaceStation[], distKm: number) => Promise<void>;
 }
@@ -82,6 +83,19 @@ export const useRouteStore = create<RouteState>()(
             })),
             setWaypoints: (waypoints) => set({ selectedWaypoints: waypoints }),
             setShowAIModal: (show) => set({ showAIModal: show }),
+
+            clearRoute: () => set({
+                origin: null,
+                destination: null,
+                routeCoordinates: null,
+                totalDistanceKm: null,
+                totalElevationGainMeters: null,
+                totalElevationLossMeters: null,
+                chargingWaypoints: [],
+                selectedWaypoints: [],
+                recommendedStationIds: [],
+                aiSuggestions: [],
+            }),
 
             fetchAISuggestions: async (stations: GooglePlaceStation[], distKm: number) => {
                 set({ isFetchingAI: true, showAIModal: true, aiSuggestions: [], aiError: null });

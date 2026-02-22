@@ -10,7 +10,7 @@ import turfDistance from "@turf/distance";
 import { point } from "@turf/helpers";
 
 export default function RouteBottomSheet() {
-    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute, origin, destination, chargingWaypoints, fetchAISuggestions, isFetchingAI } = useRouteStore();
+    const { totalDistanceKm, selectedWaypoints, removeSelectedWaypoint, calculateRoute, origin, destination, chargingWaypoints, fetchAISuggestions, isFetchingAI, clearRoute } = useRouteStore();
     const { currentSoC, maxRange, maxChargePowerKw, batteryCapacity } = useEVStore();
     const saveRoute = useSavedRoutesStore(state => state.saveRoute);
 
@@ -210,6 +210,19 @@ export default function RouteBottomSheet() {
                                     >
                                         <BookmarkPlus className="w-4 h-4" />
                                         Save
+                                    </button>
+
+                                    {/* Cancel Route Button */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            clearRoute();
+                                            setIsExpanded(false);
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-[inset_0_2px_4px_rgba(255,255,255,0.1),_0_4px_8px_rgba(0,0,0,0.1)] active:scale-95 bg-red-500 border border-red-600/50 text-white hover:bg-red-600 hover:shadow-[0_6px_12px_rgba(220,38,38,0.3)] shadow-red-500/20"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Cancel
                                     </button>
 
                                     {/* Export to Google Maps Button */}
