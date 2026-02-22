@@ -3,7 +3,7 @@
 import { useRouteStore } from "@/store/useRouteStore";
 import { useEVStore } from "@/store/useEVStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles } from "lucide-react";
+import { ChevronUp, Zap, Clock, Route as RouteIcon, Info, MapPin, Sparkles, Battery } from "lucide-react";
 import { useState } from "react";
 import turfDistance from "@turf/distance";
 import { point } from "@turf/helpers";
@@ -20,50 +20,59 @@ export default function RouteBottomSheet() {
     const drivingTimeHours = totalDistanceKm / 80; // assume 80km/h avg speed
     let totalTimeHours = drivingTimeHours;
 
-    // Charge Time calculation
-    const chargingTimes = selectedWaypoints.map(wp => {
-        if (!wp.googleStationId) return 0; // Not a charging stop
+    // Iterative Leg Calculation for SoC and Charge Times
+    let currentSoCForLeg = currentSoC;
+    let currentCoord = origin?.coordinates || [0, 0];
 
-        // Effective charge rate is the bottleneck between the station limit and the car limit
-        const stationKw = wp.stationMaxChargeRateKw || 50; // default to 50kW if unknown
-        const effectiveKw = Math.min(stationKw, maxChargePowerKw);
+    const waypointStats = selectedWaypoints.map(wp => {
+        // Distance from previous coord to this wp
+        const distKm = turfDistance(point(currentCoord), point(wp.coordinates), { units: 'kilometers' } as any) * 1.2;
 
-        // Let's assume we charge from ~20% to 80% (60% of battery capacity)
-        const kwhRequired = batteryCapacity * 0.60;
+        // Arrival SoC
+        const socDrop = (distKm / maxRange) * 100;
+        const arrivalSoC = Math.round(currentSoCForLeg - socDrop);
 
-        // Hours required to charge
-        const chargeTimeHrs = kwhRequired / effectiveKw;
+        // Departure SoC and Charge Time
+        let departureSoC = arrivalSoC;
+        let chargeTimeHrs = 0;
+
+        if (wp.googleStationId) {
+            // Target charge limit is 80%, but if they arrive with more, we don't discharge
+            departureSoC = Math.max(80, arrivalSoC);
+
+            if (arrivalSoC < 80) {
+                const pctToCharge = 80 - arrivalSoC;
+                const kwhRequired = batteryCapacity * (pctToCharge / 100);
+                const stationKw = wp.stationMaxChargeRateKw || 50;
+                const effectiveKw = Math.min(stationKw, maxChargePowerKw);
+                chargeTimeHrs = kwhRequired / effectiveKw;
+            }
+            currentSoCForLeg = departureSoC;
+        } else {
+            currentSoCForLeg = arrivalSoC;
+        }
+
+        currentCoord = wp.coordinates;
         totalTimeHours += chargeTimeHrs;
-        return chargeTimeHrs;
+
+        return { arrivalSoC, departureSoC, chargeTimeHrs };
     });
 
     const hours = Math.floor(totalTimeHours);
     const minutes = Math.round((totalTimeHours - hours) * 60);
 
-    // Remaining range based on current SoC
+    // Remaining range based on current SoC (origin)
     const remainingRange = Math.round((currentSoC / 100) * maxRange);
 
-    // Dynamic Destination SoC calculation
+    // Destination SoC
     let destSoC = 15; // fallback
     if (origin && destination) {
-        const chargingStops = selectedWaypoints.filter(wp => wp.googleStationId);
-        const hasChargingStops = chargingStops.length > 0;
-        const startSoCForLastLeg = hasChargingStops ? 80 : currentSoC;
-
         let distToDestKm = totalDistanceKm;
-
-        if (hasChargingStops) {
-            // we estimate distance from the last stop to the destination using straight line * 1.2 routing factor
-            const lastStopCoord = chargingStops[chargingStops.length - 1].coordinates;
-            distToDestKm = turfDistance(
-                point(lastStopCoord),
-                point(destination.coordinates),
-                { units: 'kilometers' } as any
-            ) * 1.2;
+        if (selectedWaypoints.length > 0) {
+            distToDestKm = turfDistance(point(currentCoord), point(destination.coordinates), { units: 'kilometers' } as any) * 1.2;
         }
-
-        const socDrop = (distToDestKm / maxRange) * 100;
-        destSoC = Math.round(startSoCForLastLeg - socDrop);
+        const destSocDrop = (distToDestKm / maxRange) * 100;
+        destSoC = Math.round(currentSoCForLeg - destSocDrop);
     }
 
     return (
@@ -129,8 +138,8 @@ export default function RouteBottomSheet() {
                                 }}
                                 disabled={isFetchingAI}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 ${isFetchingAI
-                                        ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
+                                    ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-purple-500/30'
                                     }`}
                             >
                                 <Sparkles className={`w-4 h-4 ${isFetchingAI ? 'animate-spin' : ''}`} />
@@ -161,6 +170,7 @@ export default function RouteBottomSheet() {
                         ) : (
                             selectedWaypoints.map((stop, idx) => {
                                 const isChargingStop = !!stop.googleStationId;
+                                const stats = waypointStats[idx];
                                 return (
                                     <div key={idx} className="relative pl-14 flex flex-col gap-1 py-4">
                                         <div className={`absolute left-0 w-10 h-10 ${isChargingStop ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-gray-400'} border-[3px] rounded-full flex items-center justify-center translate-x-0 outline outline-[6px] outline-white z-10`}>
@@ -169,16 +179,26 @@ export default function RouteBottomSheet() {
                                         <h4 className={`${isChargingStop ? 'text-emerald-700' : 'text-gray-900'} font-bold text-lg leading-tight`}>{stop.name}</h4>
                                         {isChargingStop ? (
                                             <div className="flex flex-col gap-0.5 mt-0.5">
+                                                <p className="text-gray-700 text-sm font-bold flex items-center gap-1.5 mb-0.5">
+                                                    <Battery className="w-4 h-4 text-emerald-500" />
+                                                    Arrive at <span className={stats.arrivalSoC < 15 ? 'text-red-500' : ''}>{stats.arrivalSoC}%</span> &rarr; Leave at <span className="text-emerald-600">{stats.departureSoC}%</span>
+                                                </p>
                                                 <p className="text-gray-600 text-sm font-medium flex items-center gap-1.5">
                                                     <Clock className="w-4 h-4 text-amber-500" />
-                                                    ~{Math.round(chargingTimes[idx] * 60)} min charge ({Math.min(stop.stationMaxChargeRateKw || 50, maxChargePowerKw)}kW)
+                                                    ~{Math.round(stats.chargeTimeHrs * 60)} min charge ({Math.min(stop.stationMaxChargeRateKw || 50, maxChargePowerKw)}kW)
                                                 </p>
                                                 <p className="text-xs text-gray-400 font-medium pl-6">
                                                     Station max: {stop.stationMaxChargeRateKw || 'Unknown'}kW | Car max: {maxChargePowerKw}kW
                                                 </p>
                                             </div>
                                         ) : (
-                                            <p className="text-gray-500 text-sm font-medium mt-0.5">Navigational Stop</p>
+                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                <p className="text-gray-500 text-sm font-medium">Navigational Stop</p>
+                                                <p className="text-gray-700 text-sm font-bold flex items-center gap-1.5">
+                                                    <Battery className="w-4 h-4 text-emerald-500" />
+                                                    Arriving at <span className={stats.arrivalSoC < 15 ? 'text-red-500' : ''}>{stats.arrivalSoC}%</span>
+                                                </p>
+                                            </div>
                                         )}
                                         <div className="bg-gray-50 rounded-xl p-3 flex justify-between items-center mt-3 border border-gray-100">
                                             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Added to Route Plan</p>
